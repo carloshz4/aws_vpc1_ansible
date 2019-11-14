@@ -13,7 +13,7 @@ This Repo contains the diagram, Ansible playbooks and relevant information to bu
 ## Diagram
 This is the diagram of the mini infraestructure created for this scenario:
 
-![Diagram](https://github.com/carloshz4/aws_vpc1_cloudformation/blob/master/VPC1.jpg)
+![Diagram](https://github.com/carloshz4/aws_vpc1_ansible/blob/master/VPC1.jpg)
 
 
 Note diagram was create with [draw.io](https://www.draw.io/) which is a handy and free tool to create and edit these kind of diagrams.
@@ -27,26 +27,27 @@ There are three Ansible playbooks in this repo:
 vpc1.yml
 vpc1-facts.yml
 vpc1-rollback.yml
-
 ```
 where:
 
-#vpc1.yml
+**vpc1.yml**
 Contains the Ansible code to create the virtual architecture mentioned above
 
-#vpc1-facts.yml
+**vpc1-facts.yml**
 Contains the Ansible code to collect (facts) information about the elements created
 
-#vpc1-rollback.yml
+**vpc1-rollback.yml**
 Contains the Ansible code to delete all elements created in the virtual architecture mentioned above
 
 
 ## Important notes
-- The code was executed on the Ansible controller host as root user
-- Root user has already the aws cli configured which means the .aws/credentials file should exist with the credentials like: 
+- The code was executed from the Ansible controller host as root user
+- Root user has already the aws cli configured which means the .aws/credentials file should exists with the credentials like: 
 
-    aws_access_key: 'AKIAIOSFODNN7EXAMPLE'
-    aws_secret_key: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+```
+aws_access_key: 'AKIAIOSFODNN7EXAMPLE'
+aws_secret_key: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+```
 
 These credentials come from an aws privileged iam user 
 
