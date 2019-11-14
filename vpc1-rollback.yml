@@ -1,0 +1,165 @@
+- name: Rollback of VPC1 with all its objects
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+
+    vpc_name: "VPC1 by Ansible"
+    igw_name: "VPC1 IGW by Ansible"
+    subnet1_name: "VPC1 Public Subnet by Ansible"
+    subnet2_name: "VPC1 Private Subnet by Ansible"
+    sg_name: 'VPC1 Public SG by Ansible'
+    route_table_name: "VPC1 Internet RT by Ansible"
+    vpcCidrBlock: '10.0.0.0/16'
+    subNet1CidrBlock: '10.0.1.0/24'
+    subNet2CidrBlock: '10.0.2.0/24'
+    allIPsCidrBlock: '0.0.0.0/0'
+    state: 'absent'
+    zone1: 'us-east-2a'
+    zone2: 'us-east-2b'
+    region: 'us-east-2'
+    keypair: 'test-1-Nov-2018'
+    aws_tags1:
+      Name: 'VPC1 Public Instance by Ansible'
+    aws_tags2:
+      Name: 'VPC1 Private Instance by Ansible'
+
+
+  tasks:
+
+#Note ec2_vpc_net_facts, ec2_vpc_subnet_facts and ec2_vpc_igw_facts used below may be called 
+#ec2_vpc_net_info, ec2_vpc_subnet_info and ec2_vpc_igw_info respectively depending on the Ansible version
+
+# find the VPC by name
+  - name: VPC facts
+    ec2_vpc_net_facts:
+      filters:
+        "tag:Name": "{{ vpc_name }}"
+    register: vpc_facts
+    tags: vpc
+
+# extract the VPC ID from facts
+  - name: "set fact: VPC ID"
+    set_fact:
+      vpc_id: "{{ vpc_facts.vpcs[0].id }}"
+    tags: vpc
+
+# find the subnets facts
+  - name: VPC subnet facts
+    ec2_vpc_subnet_facts:
+      filters:
+        vpc-id: "{{ vpc_id }}"
+    register: vpc_subnet_facts
+    tags: subnets
+
+# find the igw facts
+  - name: Gather information about the Internet Gateway
+    ec2_vpc_igw_facts:
+      region: "{{region}}"
+      filters:
+        "tag:Name": "{{igw_name}}"
+    register: igw_info
+    tags: igw
+
+
+# extract the IGW ID from facts
+  - name: "set fact: VPC IGW"
+    set_fact:
+      igw_id: "{{ igw_info.internet_gateways[0].internet_gateway_id }}"
+    tags: igw
+
+
+# find the route table facts
+  - name: Gather information about the route table
+    ec2_vpc_route_table_facts:
+      region: "{{region}}"
+      filters:
+        "tag:Name": "{{ route_table_name }}"
+    register: route_table_info
+
+# extract the RT ID from facts
+  - name: "set fact: VPC Public Route Table"
+    set_fact:
+      route_table_id: "{{ route_table_info.route_tables[0].id }}"
+    tags: igw
+
+# find the SG facts
+  - name: Gather information about the SG
+    ec2_group_facts:
+      filters:
+        group-name: "{{ sg_name }}"
+    register: sg_info
+
+# extract the SG ID from facts
+  - name: "set fact: VPC Public SG"
+    set_fact:
+      sg_id: "{{ sg_info.security_groups[0].group_id }}"
+    tags: sg
+
+# find the EC2 instances facts
+  - name: Gather information about the EC2 instances
+    ec2_instance_facts:
+      filters:
+        vpc-id: "{{ vpc_facts.vpcs[0].id }}"
+    register: ec2_info
+
+
+
+#Now deleting stuff...
+
+  - name: Remove EC2 Instances
+    ec2:
+      region: "{{region}}"
+      state: "{{state}}"
+      instance_ids: "{{ item }}"
+      wait: yes
+    with_items:
+      - "{{ ec2_info.instances[0].instance_id }}"
+      - "{{ ec2_info.instances[1].instance_id }}"
+
+
+  - name: "Delete SG by its id"
+    ec2_group:
+      region: "{{ region }}"
+      group_id: "{{ sg_id }}"
+      state: "{{state}}"
+
+
+  - name: remove route table for public subnet
+    ec2_vpc_route_table:
+      vpc_id: "{{ vpc_facts.vpcs[0].id }}"
+      region: "{{ region }}"
+      route_table_id: "{{route_table_id}}"
+      lookup: id
+      state: "{{state}}"
+    tags: route_table
+
+
+  - name: remove subnets
+    ec2_vpc_subnet:
+      vpc_id: "{{ vpc_facts.vpcs[0].id }}"
+      region: "{{ region }}"
+      state: "{{state}}"
+      cidr: "{{item}}"
+    with_items:
+      - 10.0.1.0/24
+      - 10.0.2.0/24
+    tags: subnets
+
+  - name: delete internet gateway
+    ec2_vpc_igw:
+      vpc_id: "{{ vpc_facts.vpcs[0].id }}"
+      region: "{{ region }}"
+      state: "{{state}}"
+    tags: igw
+
+  - name: delete vpc1
+    ec2_vpc_net:
+      name: "{{ vpc_facts.vpcs[0].tags.Name }}"
+      cidr_block: "{{ vpcCidrBlock }}"
+      region: "{{ region }}"
+      state: "{{state}}"
+    tags: vpc
+
+

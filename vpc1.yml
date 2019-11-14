@@ -1,0 +1,132 @@
+- name: Create a VPC with IGW, subnets, Route Table, SG and EC2 instances
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+
+    vpc_name: "VPC1 by Ansible"
+    igw_name: "VPC1 IGW by Ansible"
+    subnet1_name: "VPC1 Public Subnet by Ansible"
+    subnet2_name: "VPC1 Private Subnet by Ansible"
+    sg_name: 'VPC1 Public SG by Ansible'
+    route_table_name: "VPC1 Internet RT by Ansible"
+    vpcCidrBlock: '10.0.0.0/16'
+    subNet1CidrBlock: '10.0.1.0/24'
+    subNet2CidrBlock: '10.0.2.0/24'
+    allIPsCidrBlock: '0.0.0.0/0'
+    state: 'present'
+    zone1: 'us-east-2a'
+    zone2: 'us-east-2b'
+    region: 'us-east-2'
+    keypair: 'test-1-Nov-2018'
+    aws_tags1:
+      Name: 'VPC1 Public Instance by Ansible'
+    aws_tags2:
+      Name: 'VPC1 Private Instance by Ansible'
+
+
+  tasks:
+    - name: create vpc1
+      ec2_vpc_net:
+        name: "{{ vpc_name }}" 
+        cidr_block: "{{ vpcCidrBlock }}"
+        region: "{{ region }}"
+        dns_support: yes
+        dns_hostnames: yes
+        tenancy: default
+        state: "{{ state }}"
+      register: ec2_vpc_net_result
+      tags: vpc
+
+
+    - name: create internet gateway       
+      # create an internet gateway for the vpc
+      ec2_vpc_igw:
+        vpc_id: "{{ ec2_vpc_net_result.vpc.id }}"
+        region: "{{ region }}"
+        state: "{{ state }}" 
+        tags:
+          Name: "{{ igw_name }}"
+      register: igw_result
+      tags: igw
+
+    - name: create public subnet
+    # create the public subnet for the vpc with a cidr block
+      ec2_vpc_subnet:
+        vpc_id: "{{ ec2_vpc_net_result.vpc.id }}"
+        region: "{{ region }}"
+        az: "{{ zone1 }}"      # az is the availability zone
+        state: "{{ state }}"
+        cidr: "{{ subNet1CidrBlock }}"
+        # enable public ip
+        map_public: yes
+        resource_tags:
+          Name: "{{ subnet1_name }}"
+      register: subnet1_result
+      tags: subnets
+
+    - name: create private subnet
+    # create the private subnet for the vpc with a cidr block
+      ec2_vpc_subnet:
+        vpc_id: "{{ ec2_vpc_net_result.vpc.id }}"
+        region: "{{ region }}"
+        az: "{{ zone2 }}"      # az is the availability zone
+        state: "{{ state }}"
+        cidr: "{{ subNet2CidrBlock }}"
+        map_public: no
+        resource_tags:
+          Name: "{{ subnet2_name }}"
+      register: subnet2_result
+      tags: subnets
+
+    - name: create route table for public subnet
+      ec2_vpc_route_table:
+        vpc_id: "{{ ec2_vpc_net_result.vpc.id }}"
+        tags:
+          Name: "{{ route_table_name }}"
+        subnets:
+          - "{{ subnet1_result.subnet.id }}"
+        routes:
+          - dest: "{{allIPsCidrBlock}}"
+            gateway_id: "{{ igw_result.gateway_id }}"
+      tags: route_table
+
+    - name: create SG for the Public EC2 Instance
+      ec2_group:
+        name: "{{ sg_name }}"
+        description: sg with rule descriptions
+        vpc_id: "{{ ec2_vpc_net_result.vpc.id }}"
+        region: "{{ region }}"
+        rules:
+          - proto: tcp
+            ports:
+            - 22
+            cidr_ip: "{{allIPsCidrBlock}}"
+            rule_desc: allow all on port 22
+      register: result_sec_group
+
+    - name: Create EC2 Public Instance
+      ec2:
+        key_name: "{{keypair}}"
+        instance_type: t2.nano
+        image: ami-00bf61217e296b409
+        region: "{{ region }}"
+        instance_tags: "{{ aws_tags1 }}" 
+        wait: yes
+        group_id: "{{ result_sec_group.group_id }}"
+        count: 1
+        vpc_subnet_id: "{{ subnet1_result.subnet.id }}"
+        assign_public_ip: yes
+
+    - name: Create EC2 Private Instance
+      ec2:
+        key_name: "{{keypair}}"
+        instance_type: t2.nano
+        image: ami-00bf61217e296b409
+        region: "{{ region }}"
+        instance_tags: "{{ aws_tags2 }}" 
+        wait: yes
+        count: 1
+        vpc_subnet_id: "{{ subnet2_result.subnet.id }}"
+        assign_public_ip: no
