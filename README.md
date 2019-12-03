@@ -3,7 +3,6 @@
 This Repo contains the diagram, Ansible playbooks and relevant information to build an AWS VPC along with these elements:
 
 - Security Groups
-- NACL
 - Subnets (Public and Private)
 - IGW
 - Route Table
